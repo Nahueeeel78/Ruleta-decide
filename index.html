@@ -332,6 +332,7 @@ function drawWheel(){
 let spinning=false;
 function spin(){
   if(spinning || participants.length===0) return;
+  if(currentPrizeTier>10){ spinSurprise(); return; }
   let eligible = participants.map((p,i)=>i).filter(i=>!roundWinners.includes(participants[i].num));
   if(eligible.length===0) eligible = participants.map((_,i)=>i); // ya ganaron todos: se reabre el pool
   spinning=true;
@@ -354,9 +355,29 @@ function spin(){
     showWinner(winner);
   }, 8200);
 }
+// Premios 11 y 12: sorpresa por nombre, sin pasar por el número de la ruleta
+function spinSurprise(){
+  if(participants.length===0) return;
+  spinning=true;
+  let eligible = participants.filter(p=>!roundWinners.includes(p.num));
+  if(eligible.length===0) eligible = participants;
+  const winner = eligible[Math.floor(Math.random()*eligible.length)];
+  // la ruleta gira de verdad, por pura suspenso — cae en cualquier lado, no determina al ganador
+  const n=participants.length, extraSpins=360*12 + Math.floor(Math.random()*360);
+  rotation += extraSpins;
+  const canvas=document.getElementById('wheelCanvas');
+  canvas.style.transform=`rotate(${rotation}deg)`;
+  setTimeout(()=>{
+    spinning=false;
+    roundWinners.push(winner.num);
+    history_.unshift({name:winner.name, num:winner.num, date:new Date().toLocaleString(), tier:currentPrizeTier, surprise:true});
+    save();
+    showWinner(winner, true);
+  }, 8200);
+}
 
 let celebrationInterval=null;
-function showWinner(w){
+function showWinner(w, hideNumber){
   const nameEl=document.getElementById('winName'), subEl=document.getElementById('winNum');
   nameEl.textContent = ''; nameEl.classList.remove('pop');
   subEl.textContent=''; subEl.classList.remove('reveal');
@@ -379,9 +400,9 @@ function showWinner(w){
       else{ gift.textContent='🎉'; gift.style.display='block'; }
     }, 300);
   }, 500);
-  // 2) después aparece el número
+  // 2) después aparece el número (o "¡Sorpresa!" si no hay número)
   setTimeout(()=>{
-    nameEl.textContent = 'N°'+w.num;
+    nameEl.textContent = hideNumber ? '¡Sorpresa!' : 'N°'+w.num;
     void nameEl.offsetWidth; nameEl.classList.add('pop');
     launchCelebration(2);
   }, 1700);
@@ -417,7 +438,7 @@ function showRoundSummary(results){
           display:flex;align-items:center;justify-content:center;font-size:1.1rem;">🎁</div>`;
     return `<div class="hist-item" style="align-items:center;">
       <span style="display:flex;align-items:center;">${thumb}🏆 ${ordinal(r.tier)} Premio</span>
-      <span>N°${r.num} - ${r.name}</span></div>`;
+      <span>${r.surprise ? '' : 'N°'+r.num+' - '}${r.name}</span></div>`;
   }).join('');
   document.getElementById('summaryModal').classList.add('show');
 }
@@ -478,7 +499,7 @@ function applyPrizeCount(n, skipSave){
 }
 function buildPrizeCountUI(){
   const r=document.getElementById('prizeCountRow');
-  r.innerHTML = Array.from({length:10},(_,i)=>i+1).map(n=>
+  r.innerHTML = Array.from({length:12},(_,i)=>i+1).map(n=>
     `<button class="font-opt" data-n="${n}" onclick="applyPrizeCount(${n})">${n}</button>`).join('');
 }
 
@@ -487,7 +508,8 @@ function renderHistory(){
   if(history_.length===0){ el.innerHTML='<div class="sub" style="margin:0;">Todavía no hay sorteos</div>'; return; }
   el.innerHTML = history_.map(h=>{
     const tierTxt = h.tier ? ` <span style="opacity:.55;">(${ordinal(h.tier)} premio)</span>` : '';
-    return `<div class="hist-item"><span>🏆 N°${h.num} - ${h.name}${tierTxt}</span><span style="opacity:.6;">${h.date}</span></div>`;
+    const numTxt = h.surprise ? '' : `N°${h.num} - `;
+    return `<div class="hist-item"><span>🏆 ${numTxt}${h.name}${tierTxt}</span><span style="opacity:.6;">${h.date}</span></div>`;
   }).join('');
 }
 function clearHistory(){ history_=[]; save(); renderHistory(); }
